@@ -1,4 +1,5 @@
-"""Adds a Trimlight controller: pick one found on the network, or type its address."""
+"""Adds a Trimlight controller (found on the network, or typed), or a group
+of controllers in the same space."""
 
 from __future__ import annotations
 
@@ -7,14 +8,30 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.components import network
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_HOST
-from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig, SelectSelectorMode
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.const import CONF_HOST, CONF_NAME
+from homeassistant.core import callback
+from homeassistant.helpers.selector import (
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    TextSelector,
+)
 
-from .const import DOMAIN
+from .const import CONF_MEMBERS, CONF_TYPE, DOMAIN, TYPE_GROUP
+from .group import is_group, member_ids
 from .protocol import Trimlight, TrimlightError, discover
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _controllers(entries: list[ConfigEntry]) -> list[SelectOptionDict]:
+    return [SelectOptionDict(value=e.entry_id, label=e.title) for e in entries if not is_group(e)]
+
+
+def _members_selector(options: list[SelectOptionDict]) -> SelectSelector:
+    return SelectSelector(SelectSelectorConfig(options=options, multiple=True, mode=SelectSelectorMode.LIST))
 
 
 class TrimlightConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -22,6 +39,24 @@ class TrimlightConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         self._found: list[str] | None = None
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        return GroupOptionsFlow()
+
+    @classmethod
+    @callback
+    def async_supports_options_flow(cls, config_entry: ConfigEntry) -> bool:
+        return is_group(config_entry)  # only a group has anything to change
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        # A group needs controllers to put in it.
+        if len(_controllers(self._async_current_entries())) < 2:
+            return await self.async_step_controller()
+        return self.async_show_menu(step_id="user", menu_options=["controller", "group"])
+
+    # -------------------------------------------------------- controller
 
     async def _own_ipv4(self) -> list[str]:
         """Home Assistant's IPv4 addresses on its enabled network adapters
@@ -40,7 +75,7 @@ class TrimlightConfigFlow(ConfigFlow, domain=DOMAIN):
                 ips.append(source)
         return ips
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_controller(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
             host = user_input[CONF_HOST].strip()
@@ -74,8 +109,48 @@ class TrimlightConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
         return self.async_show_form(
-            step_id="user",
+            step_id="controller",
             data_schema=schema,
             errors=errors,
             description_placeholders={"found": str(len(self._found))},
         )
+
+    # ------------------------------------------------------------- group
+
+    async def async_step_group(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        options = _controllers(self._async_current_entries())
+        if user_input is not None:
+            name = user_input[CONF_NAME].strip()
+            members = user_input.get(CONF_MEMBERS, [])
+            if not name:
+                errors[CONF_NAME] = "name_required"
+            elif len(members) < 2:
+                errors[CONF_MEMBERS] = "two_members"
+            else:
+                return self.async_create_entry(
+                    title=name, data={CONF_TYPE: TYPE_GROUP, CONF_MEMBERS: members}
+                )
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_NAME, default=(user_input or {}).get(CONF_NAME, "")): TextSelector(),
+                vol.Required(CONF_MEMBERS, default=(user_input or {}).get(CONF_MEMBERS, [])): _members_selector(options),
+            }
+        )
+        return self.async_show_form(step_id="group", data_schema=schema, errors=errors)
+
+
+class GroupOptionsFlow(OptionsFlow):
+    """Changes which controllers are in a group."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if len(user_input.get(CONF_MEMBERS, [])) < 2:
+                errors[CONF_MEMBERS] = "two_members"
+            else:
+                return self.async_create_entry(data={CONF_MEMBERS: user_input[CONF_MEMBERS]})
+        options = _controllers(self.hass.config_entries.async_entries(DOMAIN))
+        current = [m for m in member_ids(self.config_entry) if any(o["value"] == m for o in options)]
+        schema = vol.Schema({vol.Required(CONF_MEMBERS, default=current): _members_selector(options)})
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

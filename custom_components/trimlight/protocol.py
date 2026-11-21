@@ -21,6 +21,9 @@ START, END = 0x5A, 0xA5
 
 SYNC_DETAIL = 0x02
 CHECK_PATTERN = 0x03
+DELETE_PATTERN = 0x04
+UPDATE_PATTERN = 0x05
+CREATE_PATTERN = 0x06
 CHECK_PRESET = 0x0A
 CHECK_DEVICE = 0x0C
 SET_MODE = 0x0D
@@ -99,6 +102,19 @@ def frame(kind: int, payload: bytes = b"") -> bytes:
     return bytes([START, kind, len(payload) >> 8, len(payload) & 0xFF]) + payload + bytes([END])
 
 
+NAME_LENGTH = 25
+
+
+def pattern_payload(p: Pattern) -> bytes:
+    """A saved pattern as Create/Update Pattern send it, the same 58 bytes
+    Pattern Detail returns."""
+    name = p.name.encode("ascii")[:NAME_LENGTH].ljust(NAME_LENGTH, b"\x00")
+    out = (bytes([p.id]) + name + bytes([p.category, p.effect, p.speed, p.brightness])
+           + bytes(p.dot_counts).ljust(7, b"\x00")[:7] + bytes(p.dot_colors).ljust(21, b"\x00")[:21])
+    assert len(out) == 58
+    return out
+
+
 def _name(raw: bytes) -> str:
     out = bytearray()
     for b in raw:
@@ -110,6 +126,14 @@ def _name(raw: bytes) -> str:
 
 def _time(h: int, m: int) -> time:
     return time(min(h, 23), min(m, 59))
+
+
+def _check_reply(host: str, b: bytes, wanted_id: int) -> None:
+    """A detail reply must be for the ID asked for and end where it should.
+    With the app connected too, the controller sometimes answers with another
+    request's reply; reading on would misparse everything after it."""
+    if b[0] != START or b[-1] != END or b[1] != wanted_id:
+        raise TrimlightError(f"{host}: reply for the wrong request ({b[:6].hex()}...)")
 
 
 class Trimlight:
@@ -183,6 +207,8 @@ class Trimlight:
             count = (await self._read(reader, 1))[0]
             schedule_ids = list(await self._read(reader, count))
             daily_raw = await self._read(reader, 15)  # 2 x 7, end
+            if daily_raw[14] != END:
+                raise TrimlightError(f"{self.host}: garbled detail reply")
             daily = []
             for slot in range(2):
                 d = daily_raw[slot * 7: slot * 7 + 7]
@@ -198,8 +224,9 @@ class Trimlight:
                 writer.write(frame(PATTERN_DETAIL, bytes([pid])))
                 await writer.drain()
                 b = await self._read(reader, 60)
-                if b[0] != START or b[2:60] == b"\xff" * 58:
-                    continue
+                if b[0] == START and b[2:60] == b"\xff" * 58:
+                    continue  # no such pattern
+                _check_reply(self.host, b, pid)
                 out.append(Pattern(b[1], _name(b[2:27]), b[27], b[28], b[29], b[30], bytes(b[31:38]), bytes(b[38:59])))
             return out
 
@@ -212,8 +239,11 @@ class Trimlight:
                 writer.write(frame(SCHEDULE_DETAIL, bytes([sid])))
                 await writer.drain()
                 b = await self._read(reader, 12)
-                if b[0] != START or b[1] == 0xFF:
+                if b[0] == START and b[1] == 0xFF:
+                    # No such schedule: the reply is 60 bytes of 0xff.
+                    await self._read(reader, 48)
                     continue
+                _check_reply(self.host, b, sid)
                 out.append(Schedule(b[1], b[2], b[3], b[4], b[5], b[6], _time(b[7], b[8]), _time(b[9], b[10])))
             return out
 
@@ -252,12 +282,31 @@ class Trimlight:
         return frame(CUSTOM_PREVIEW, bytes([pattern.effect, pattern.speed, brightness])
                      + pattern.dot_counts + pattern.dot_colors)
 
+    async def preview(self, pattern: Pattern) -> None:
+        """Shows a pattern without saving it (manual mode)."""
+        await self._send(frame(SET_MODE, bytes([MODE_MANUAL])), self._preview(pattern, pattern.brightness))
+
+    # The library. Tried live: a created pattern reads back exactly, and the
+    # colours are R, G, B (not R, B, G as the protocol notes say).
+
+    async def create_pattern(self, pattern: Pattern) -> None:
+        """Saves a new pattern under pattern.id, which must be free."""
+        await self._send(frame(CREATE_PATTERN, pattern_payload(pattern)))
+
+    async def update_pattern(self, pattern: Pattern) -> None:
+        """Overwrites the saved pattern with pattern.id."""
+        await self._send(frame(UPDATE_PATTERN, pattern_payload(pattern)))
+
+    async def delete_pattern(self, pattern_id: int) -> None:
+        await self._send(frame(DELETE_PATTERN, bytes([pattern_id])))
+
     async def solid_color(self, r: int, g: int, b: int) -> None:
         await self._send(frame(SET_MODE, bytes([MODE_MANUAL])), frame(SOLID_COLOR, bytes([r, g, b])))
 
     async def turn_off(self) -> None:
-        """The protocol has no documented off; all black is the closest."""
-        await self.solid_color(0, 0, 0)
+        """The controllers' only off: back to their own schedules (timer
+        mode), which leaves them dark outside a schedule's hours."""
+        await self.set_mode(MODE_TIMER)
 
 
 # ------------------------------------------------------------------ schedules

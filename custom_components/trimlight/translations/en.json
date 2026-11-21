@@ -2,31 +2,97 @@
   "config": {
     "step": {
       "user": {
+        "title": "Add Trimlight",
+        "menu_options": {
+          "controller": "A controller",
+          "group": "A group of controllers in the same space"
+        }
+      },
+      "controller": {
         "title": "Add a Trimlight controller",
         "description": "Found {found} controller(s) on the network that aren't set up yet. Pick one, or type a controller's IP address.",
         "data": { "host": "Controller" }
+      },
+      "group": {
+        "title": "Add a group of controllers",
+        "description": "Controllers in the same space, controlled together as one light. Its patterns are the ones every controller has, matched by name.",
+        "data": { "name": "Name", "members": "Controllers" }
       }
     },
-    "error": { "cannot_connect": "Couldn't reach a Trimlight controller at that address." },
+    "error": {
+      "cannot_connect": "Couldn't reach a Trimlight controller at that address.",
+      "name_required": "Give the group a name.",
+      "two_members": "Pick at least two controllers."
+    },
     "abort": { "already_configured": "That controller is already set up." }
   },
-  "entity": {
-    "switch": { "schedule": { "name": "Run schedule" } }
+  "options": {
+    "step": {
+      "init": {
+        "title": "Controllers in this group",
+        "data": { "members": "Controllers" }
+      }
+    },
+    "error": { "two_members": "Pick at least two controllers." }
   },
   "services": {
     "turn_off_in": {
       "name": "Turn off in",
-      "description": "Turns the lights off after a number of minutes.",
-      "fields": { "minutes": { "name": "Minutes", "description": "How long until they turn off." } }
+      "description": "Hands the lights back to their schedule after a number of minutes.",
+      "fields": { "minutes": { "name": "Minutes", "description": "How long until they go back to their schedule." } }
     },
     "turn_off_at": {
       "name": "Turn off at",
-      "description": "Turns the lights off at a time of day (the next time it comes round).",
-      "fields": { "time": { "name": "Time", "description": "When to turn off." } }
+      "description": "Hands the lights back to their schedule at a time of day (the next time it comes round).",
+      "fields": { "time": { "name": "Time", "description": "When to go back to their schedule." } }
     },
     "cancel_off_timer": {
       "name": "Cancel off timer",
       "description": "Cancels a pending turn off."
+    },
+    "save_pattern": {
+      "name": "Save pattern",
+      "description": "Changes the saved pattern with this name, or creates it if there isn't one. Settings left out stay as they are (or take a default on a new pattern). On a group, every controller gets it.",
+      "fields": {
+        "name": { "name": "Name", "description": "The pattern's name (up to 25 plain letters, digits and spaces)." },
+        "effect": { "name": "Effect", "description": "How the colours move." },
+        "speed": { "name": "Speed", "description": "0 to 100." },
+        "brightness": { "name": "Brightness", "description": "0 to 100." },
+        "colors": { "name": "Colours", "description": "1 to 7 colours, in order: names like red, or codes like #ff0078. Needed for a new pattern." },
+        "counts": { "name": "Dots per colour", "description": "How many dots of each colour in a row, in the same order, e.g. 2, 1, 1. Leave out for 1 each (or as they were)." }
+      }
+    },
+    "rename_pattern": {
+      "name": "Rename pattern",
+      "description": "Renames a saved pattern.",
+      "fields": {
+        "pattern": { "name": "Pattern", "description": "Its current name." },
+        "new_name": { "name": "New name", "description": "Up to 25 plain letters, digits and spaces." }
+      }
+    },
+    "delete_pattern": {
+      "name": "Delete pattern",
+      "description": "Deletes a saved pattern. This can't be undone.",
+      "fields": { "pattern": { "name": "Pattern", "description": "The name of the pattern to delete." } }
+    },
+    "copy_pattern": {
+      "name": "Copy pattern",
+      "description": "Copies a saved pattern from another Trimlight light to these, over any pattern of the same name.",
+      "fields": {
+        "source": { "name": "From", "description": "The Trimlight light that has the pattern." },
+        "pattern": { "name": "Pattern", "description": "The name of the pattern to copy." }
+      }
+    },
+    "preview_pattern": {
+      "name": "Preview pattern",
+      "description": "Shows a pattern on the lights without saving it, to try out settings before saving.",
+      "fields": {
+        "effect": { "name": "Effect", "description": "How the colours move." },
+        "speed": { "name": "Speed", "description": "0 to 100." },
+        "brightness": { "name": "Brightness", "description": "0 to 100." },
+        "colors": { "name": "Colours", "description": "1 to 7 colours, in order: names like red, or codes like #ff0078." },
+        "counts": { "name": "Dots per colour", "description": "How many dots of each colour in a row, in the same order." }
+      }
     }
   }
 }

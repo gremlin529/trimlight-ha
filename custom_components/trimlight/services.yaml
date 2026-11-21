@@ -28,3 +28,142 @@ cancel_off_timer:
     entity:
       integration: trimlight
       domain: light
+save_pattern:
+  target:
+    entity:
+      integration: trimlight
+      domain: light
+  fields:
+    name:
+      required: true
+      example: pink and red
+      selector:
+        text:
+    effect:
+      example: Wave Forward
+      selector:
+        select:
+          options:
+            - "Static"
+            - "Chase Forward"
+            - "Chase Backward"
+            - "Chase Middle to Out"
+            - "Chase Out to Middle"
+            - "Strobe"
+            - "Fade"
+            - "Comet Forward"
+            - "Comet Backward"
+            - "Wave Forward"
+            - "Wave Backward"
+            - "Solid Fade"
+    speed:
+      example: 37
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+    brightness:
+      example: 100
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+    colors:
+      required: false
+      example: ["red", "#ff0078", "white"]
+      selector:
+        text:
+          multiple: true
+    counts:
+      example: [2, 1, 1]
+      selector:
+        object:
+rename_pattern:
+  target:
+    entity:
+      integration: trimlight
+      domain: light
+  fields:
+    pattern:
+      required: true
+      selector:
+        text:
+    new_name:
+      required: true
+      selector:
+        text:
+delete_pattern:
+  target:
+    entity:
+      integration: trimlight
+      domain: light
+  fields:
+    pattern:
+      required: true
+      selector:
+        text:
+copy_pattern:
+  target:
+    entity:
+      integration: trimlight
+      domain: light
+  fields:
+    source:
+      required: true
+      selector:
+        entity:
+          integration: trimlight
+          domain: light
+    pattern:
+      required: true
+      selector:
+        text:
+preview_pattern:
+  target:
+    entity:
+      integration: trimlight
+      domain: light
+  fields:
+    effect:
+      example: Wave Forward
+      selector:
+        select:
+          options:
+            - "Static"
+            - "Chase Forward"
+            - "Chase Backward"
+            - "Chase Middle to Out"
+            - "Chase Out to Middle"
+            - "Strobe"
+            - "Fade"
+            - "Comet Forward"
+            - "Comet Backward"
+            - "Wave Forward"
+            - "Wave Backward"
+            - "Solid Fade"
+    speed:
+      example: 37
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+    brightness:
+      example: 100
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+    colors:
+      required: true
+      example: ["red", "#ff0078", "white"]
+      selector:
+        text:
+          multiple: true
+    counts:
+      example: [2, 1, 1]
+      selector:
+        object:
