@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a Trimlight controller",
+        "description": "Found {found} controller(s) on the network that aren't set up yet. Pick one, or type a controller's IP address.",
+        "data": { "host": "Controller" }
+      }
+    },
+    "error": { "cannot_connect": "Couldn't reach a Trimlight controller at that address." },
+    "abort": { "already_configured": "That controller is already set up." }
+  },
+  "entity": {
+    "switch": { "schedule": { "name": "Run schedule" } }
+  },
+  "services": {
+    "turn_off_in": {
+      "name": "Turn off in",
+      "description": "Turns the lights off after a number of minutes.",
+      "fields": { "minutes": { "name": "Minutes", "description": "How long until they turn off." } }
+    },
+    "turn_off_at": {
+      "name": "Turn off at",
+      "description": "Turns the lights off at a time of day (the next time it comes round).",
+      "fields": { "time": { "name": "Time", "description": "When to turn off." } }
+    },
+    "cancel_off_timer": {
+      "name": "Cancel off timer",
+      "description": "Cancels a pending turn off."
+    }
+  }
+}
