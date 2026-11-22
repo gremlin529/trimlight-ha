@@ -7,7 +7,7 @@ from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
 
 from .coordinator import TrimlightCoordinator
-from .group import is_group
+from .groups import is_group
 from .protocol import Trimlight
 
 PLATFORMS = [Platform.LIGHT]

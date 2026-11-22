@@ -58,7 +58,7 @@ from .const import (
     SERVICE_TURN_OFF_IN,
 )
 from .coordinator import PatternEdit, TrimlightCoordinator, byte_to_percent, used_colors
-from .group import coordinators_for_entity, is_group, light_unique_id, member_coordinators, member_entity_ids
+from .groups import coordinators_for_entity, is_group, light_unique_id, member_coordinators, member_entity_ids
 from .protocol import CATEGORY_PRESET, EFFECTS, MODE_MANUAL, MODE_TIMER, Pattern
 
 _LOGGER = logging.getLogger(__name__)

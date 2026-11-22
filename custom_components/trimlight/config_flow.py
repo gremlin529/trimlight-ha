@@ -20,7 +20,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import CONF_MEMBERS, CONF_TYPE, DOMAIN, TYPE_GROUP
-from .group import is_group, member_ids
+from .groups import is_group, member_ids
 from .protocol import Trimlight, TrimlightError, discover
 
 _LOGGER = logging.getLogger(__name__)
