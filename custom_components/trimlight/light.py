@@ -36,7 +36,12 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_track_point_in_time, async_track_state_change_event
+from homeassistant.helpers.event import (
+    async_track_point_in_time,
+    async_track_state_change_event,
+    async_track_time_interval,
+)
+from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import color as color_util
@@ -54,11 +59,20 @@ from .const import (
     SERVICE_PREVIEW_PATTERN,
     SERVICE_RENAME_PATTERN,
     SERVICE_SAVE_PATTERN,
+    SERVICE_SYNC_PATTERNS,
     SERVICE_TURN_OFF_AT,
     SERVICE_TURN_OFF_IN,
 )
 from .coordinator import PatternEdit, TrimlightCoordinator, byte_to_percent, used_colors
-from .groups import coordinators_for_entity, is_group, light_unique_id, member_coordinators, member_entity_ids
+from .groups import (
+    async_sync_patterns,
+    coordinators_for_entity,
+    is_group,
+    light_unique_id,
+    member_coordinators,
+    member_entity_ids,
+    patterns_out_of_sync,
+)
 from .protocol import CATEGORY_PRESET, EFFECTS, MODE_MANUAL, MODE_TIMER, Pattern
 
 _LOGGER = logging.getLogger(__name__)
@@ -153,6 +167,7 @@ async def async_setup_entry(
     platform.async_register_entity_service(
         SERVICE_PREVIEW_PATTERN, {**PATTERN_FIELDS, vol.Required("colors"): _colors}, "async_preview_pattern"
     )
+    platform.async_register_entity_service(SERVICE_SYNC_PATTERNS, None, "async_sync_patterns")
 
 
 # ------------------------------------------------------------------ shared
@@ -265,6 +280,9 @@ class _TrimlightBase(LightEntity, RestoreEntity):
 
     def _previewed(self) -> None:
         """After a preview: the lights show something unsaved."""
+
+    async def async_sync_patterns(self) -> None:
+        """Only groups have members to keep the same."""
 
 
 def describe(p: Pattern | None) -> dict[str, Any] | None:
@@ -462,6 +480,7 @@ class TrimlightGroupLight(_TrimlightBase):
 
     def __init__(self, hass: HomeAssistant, entry: TrimlightConfigEntry) -> None:
         self._entry = entry
+        self._sync_lock = asyncio.Lock()
         self._attr_unique_id = f"group_{entry.entry_id}_light"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"group_{entry.entry_id}")},
@@ -548,8 +567,27 @@ class TrimlightGroupLight(_TrimlightBase):
         await asyncio.gather(*calls)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
+        # A pattern made on one controller since the last check is copied to
+        # the others first, so it can show on all of them.
+        await self.async_sync_patterns()
         data = {k: v for k, v in kwargs.items() if k in (ATTR_BRIGHTNESS, ATTR_RGB_COLOR)}
         await self._each("turn_on", data, kwargs.get(ATTR_EFFECT))
+
+    # -- keeping the members' patterns the same
+
+    async def async_sync_patterns(self) -> None:
+        """Copies patterns missing from any member over from the others."""
+        if self._sync_lock.locked() or not patterns_out_of_sync(self._coordinators()):
+            return
+        async with self._sync_lock:
+            added = await async_sync_patterns(self.hass, self._entry)
+        for name, patterns in added.items():
+            _LOGGER.info("%s: copied %s to %s", self._entry.title, ", ".join(patterns), name)
+
+    @callback
+    def _check_sync(self) -> None:
+        if not self._sync_lock.locked() and patterns_out_of_sync(self._coordinators()):
+            self.hass.async_create_task(self.async_sync_patterns())
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         self._clear_timer()
@@ -564,7 +602,19 @@ class TrimlightGroupLight(_TrimlightBase):
         @callback
         def member_changed(_event: Event) -> None:
             self.async_write_ha_state()
+            self._check_sync()
 
         self.async_on_remove(async_track_state_change_event(self.hass, self._members(), member_changed))
+
+        # The controllers are read every minute (their pattern lists when they
+        # change), so a pattern made in the app is noticed within about a
+        # minute. Also once everything has started (the members load after
+        # the group, maybe).
+        @callback
+        def check(*_args: Any) -> None:
+            self._check_sync()
+
+        self.async_on_remove(async_track_time_interval(self.hass, check, timedelta(seconds=60)))
+        self.async_on_remove(async_at_started(self.hass, check))
         if (last := await self.async_get_last_state()) is not None:
             self._restore_timer(last.attributes)

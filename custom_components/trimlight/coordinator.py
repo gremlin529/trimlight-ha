@@ -212,6 +212,25 @@ class TrimlightCoordinator(DataUpdateCoordinator[TrimlightData]):
             raise ServiceValidationError(f"{self.data.info.name} has no room for another pattern")
         await self._write(self.client.create_pattern(replace(source, id=free)))
 
+    async def add_patterns(self, patterns: list[Pattern]) -> None:
+        """Creates several patterns (copies from another controller) under
+        free IDs, then reads the library back once."""
+        used = set(self.data.detail.pattern_ids)
+        try:
+            for p in patterns:
+                free = next((i for i in range(1, 256) if i not in used), None)
+                if free is None:
+                    raise ServiceValidationError(f"{self.data.info.name} has no room for another pattern")
+                used.add(free)
+                await self.client.create_pattern(replace(p, id=free))
+                await asyncio.sleep(0.3)  # the controller saves each to flash
+        except TrimlightError as err:
+            raise HomeAssistantError(f"Couldn't reach {self.data.info.name}: {err}") from err
+        finally:
+            await asyncio.sleep(1)
+            self._library_at = None
+            await self.async_refresh()
+
     async def rename_pattern(self, name: str, new_name: str) -> None:
         pattern = self._need(name)
         new_name = check_name(new_name)

@@ -29,9 +29,19 @@ Each controller becomes a device with:
 
 Controllers in the same space (front and back of the house, say) can be put in a **group**, which is one light that controls them all together. Add one with **Add integration → Trimlight → A group of controllers** (offered once there are two controllers), give it a name and pick the controllers; change them later with **Configure**.
 
-- Its effects are the patterns every controller in it has, matched by name ignoring case. Picking one shows it on all of them.
+- **It keeps the controllers' patterns the same.** Any pattern one controller has and another doesn't (matched by name, ignoring case) is copied to the others. This happens when the group starts, within about a minute of a pattern being made in the Trimlight app (each controller is read every minute), and just before the group is turned on. `trimlight.sync_patterns` does it on demand. Where two controllers have a pattern with the same name but different settings, each keeps its own. Deleting a pattern in the app only removes it from that controller, so the group puts it back; use `trimlight.delete_pattern` on the group to delete it from all of them.
+- Its effects are the patterns every controller in it has. Picking one shows it on all of them.
 - On, off (back to their schedules), brightness and colour go to all of them.
 - It has its own off timers, and the pattern actions work on it too: saving a pattern on a group saves it on every controller, which is also how to give them all the same patterns.
+
+## Blueprint: a pattern around a date or holiday
+
+`blueprints/automation/trimlight/holiday_effect.yaml` shows a pattern each evening around a date or a holiday, and turns the lights off again afterwards (back to their own schedules). It repeats every year. To use it, copy it to `config/blueprints/automation/trimlight/` and create an automation from it under **Settings → Automations → Blueprints**.
+
+- **Around:** a date (only the month and day count), or a holiday. The holidays are New Year's Day and Eve, Valentine's, St. Patrick's, Easter, Mother's and Father's Day, Memorial Day, Canada Day, Independence Day, Labor Day, Thanksgiving (US and Canada), Halloween, Veterans/Remembrance Day and Christmas. Easter and the "nth weekday" holidays are worked out for each year. Diwali and Lunar New Year follow the moon, so they come from a table that runs to 2030.
+- **Days before and after:** how many days either side of the date it runs. A window can cross New Year.
+- **On:** at a time, or at sunset or sunrise with an offset (e.g. -00:15 for 15 minutes before sunset). **Off:** the same choices. An off the next morning (at sunrise, or at a time earlier than the on time) counts with the evening before.
+- **Pattern:** the pattern's name as in the light's effect list (any case).
 
 The integration also keeps each controller's clock right (it's set every minute, as the app does on connecting), since the controller's schedules run on it.
 

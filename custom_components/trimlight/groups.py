@@ -12,6 +12,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .const import CONF_MEMBERS, CONF_TYPE, DOMAIN, TYPE_GROUP
 from .coordinator import TrimlightCoordinator
+from .protocol import Pattern
 
 
 def is_group(entry: ConfigEntry) -> bool:
@@ -61,3 +62,36 @@ def coordinators_for_entity(hass: HomeAssistant, entity_id: str) -> list[Trimlig
     if entry.state is not ConfigEntryState.LOADED:
         raise ServiceValidationError(f"{entity_id} isn't set up")
     return [entry.runtime_data]
+
+
+def _key(p: Pattern) -> str:
+    return p.name.strip().lower()
+
+
+def patterns_out_of_sync(coordinators: list[TrimlightCoordinator]) -> bool:
+    """Whether the controllers' pattern names differ (ignoring case)."""
+    names = [{_key(p) for p in c.data.patterns if p.name.strip()} for c in coordinators]
+    return len(names) > 1 and any(n != names[0] for n in names[1:])
+
+
+async def async_sync_patterns(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, list[str]]:
+    """Gives every controller in a group every pattern any of them has
+    (matched by name, ignoring case), copying the missing ones over. A name
+    on several controllers keeps the first member's version. Returns what
+    was added, by controller name."""
+    coordinators = member_coordinators(hass, entry)
+    if len(coordinators) < 2:
+        return {}
+    union: dict[str, Pattern] = {}
+    for c in coordinators:
+        for p in c.data.patterns:
+            if p.name.strip():
+                union.setdefault(_key(p), p)
+    added: dict[str, list[str]] = {}
+    for c in coordinators:
+        have = {_key(p) for p in c.data.patterns}
+        missing = [p for k, p in union.items() if k not in have]
+        if missing:
+            await c.add_patterns(missing)
+            added[c.data.info.name] = [p.name for p in missing]
+    return added

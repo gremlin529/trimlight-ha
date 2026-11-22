@@ -167,3 +167,8 @@ preview_pattern:
       example: [2, 1, 1]
       selector:
         object:
+sync_patterns:
+  target:
+    entity:
+      integration: trimlight
+      domain: light

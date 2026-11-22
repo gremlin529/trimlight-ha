@@ -1,0 +1,247 @@
+blueprint:
+  name: Trimlight - show a pattern around a date or holiday
+  description: >-
+    Turns Trimlight lights on with one of their patterns each evening around a
+    date or holiday (so many days before and after), and off again (off hands
+    them back to their own schedules). On and off can be at a time of day or
+    at sunset or sunrise, with an offset. Repeats every year.
+  domain: automation
+  input:
+    lights:
+      name: Trimlight lights
+      description: A Trimlight light or group.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - integration: trimlight
+              domain: light
+    pattern:
+      name: Pattern
+      description: The pattern's name, as in the light's effect list (case doesn't matter), e.g. CHRISTMAS.
+      selector:
+        text:
+    date_kind:
+      name: Around
+      default: holiday
+      selector:
+        select:
+          options:
+            - label: A holiday
+              value: holiday
+            - label: A date (every year)
+              value: date
+    holiday:
+      name: Holiday
+      description: Used when "Around" is a holiday.
+      default: christmas
+      selector:
+        select:
+          options:
+            - { label: "New Year's Day (1 Jan)", value: new_year }
+            - { label: "Lunar New Year (to 2030)", value: lunar_new_year }
+            - { label: "Valentine's Day (14 Feb)", value: valentines }
+            - { label: "St. Patrick's Day (17 Mar)", value: st_patricks }
+            - { label: "Easter", value: easter }
+            - { label: "Mother's Day (US/Canada: 2nd Sunday of May)", value: mothers_day }
+            - { label: "Memorial Day (last Monday of May)", value: memorial_day }
+            - { label: "Father's Day (3rd Sunday of June)", value: fathers_day }
+            - { label: "Canada Day (1 Jul)", value: canada_day }
+            - { label: "Independence Day (4 Jul)", value: independence_day }
+            - { label: "Labor Day (1st Monday of September)", value: labor_day }
+            - { label: "Thanksgiving, Canada (2nd Monday of October)", value: thanksgiving_ca }
+            - { label: "Halloween (31 Oct)", value: halloween }
+            - { label: "Diwali (to 2030)", value: diwali }
+            - { label: "Veterans / Remembrance Day (11 Nov)", value: veterans_day }
+            - { label: "Thanksgiving, US (4th Thursday of November)", value: thanksgiving }
+            - { label: "Christmas (25 Dec)", value: christmas }
+            - { label: "New Year's Eve (31 Dec)", value: new_years_eve }
+    date:
+      name: Date
+      description: Used when "Around" is a date. Only the month and day count; it repeats every year.
+      default: "2026-12-25"
+      selector:
+        date:
+    days_before:
+      name: Days before
+      default: 0
+      selector:
+        number: { min: 0, max: 60, mode: box, unit_of_measurement: days }
+    days_after:
+      name: Days after
+      default: 0
+      selector:
+        number: { min: 0, max: 60, mode: box, unit_of_measurement: days }
+    on_kind:
+      name: Turn on
+      default: sunset
+      selector:
+        select:
+          options:
+            - { label: "At a time", value: time }
+            - { label: "At sunset (plus the offset)", value: sunset }
+            - { label: "At sunrise (plus the offset)", value: sunrise }
+    on_time:
+      name: On at (time)
+      default: "17:00:00"
+      selector:
+        time:
+    on_offset:
+      name: On offset from the sun
+      description: e.g. -00:15 for 15 minutes before sunset.
+      default: { hours: 0, minutes: 0, seconds: 0 }
+      selector:
+        duration:
+          allow_negative: true
+    off_kind:
+      name: Turn off
+      default: time
+      selector:
+        select:
+          options:
+            - { label: "At a time", value: time }
+            - { label: "At sunrise (plus the offset)", value: sunrise }
+            - { label: "At sunset (plus the offset)", value: sunset }
+    off_time:
+      name: Off at (time)
+      default: "23:00:00"
+      selector:
+        time:
+    off_offset:
+      name: Off offset from the sun
+      default: { hours: 0, minutes: 0, seconds: 0 }
+      selector:
+        duration:
+          allow_negative: true
+
+mode: queued
+
+variables:
+  lights: !input lights
+  pattern: !input pattern
+  date_kind: !input date_kind
+  holiday: !input holiday
+  fixed_date: !input date
+  days_before: !input days_before
+  days_after: !input days_after
+  on_kind: !input on_kind
+  off_kind: !input off_kind
+  on_time: !input on_time
+  off_time: !input off_time
+  # Whether a day (0 today, 1 yesterday) falls in the window round the date
+  # or holiday, checking last year's, this year's and next year's (a window
+  # can cross New Year).
+  windows: >-
+    {%- macro nth(y, m, wd, n) -%}
+      {%- set first = strptime(y ~ '-' ~ m ~ '-1', '%Y-%m-%d') -%}
+      {{- 1 + (wd - first.weekday()) % 7 + 7 * (n - 1) -}}
+    {%- endmacro -%}
+    {%- macro last(y, m, wd) -%}
+      {%- set end = strptime(y ~ '-' ~ m ~ '-31', '%Y-%m-%d') -%}
+      {{- 31 - (end.weekday() - wd) % 7 -}}
+    {%- endmacro -%}
+    {%- macro easter(y) -%}
+      {%- set a = y % 19 -%}{%- set b = y // 100 -%}{%- set c = y % 100 -%}
+      {%- set d = b // 4 -%}{%- set e = b % 4 -%}{%- set f = (b + 8) // 25 -%}
+      {%- set g = (b - f + 1) // 3 -%}{%- set h = (19 * a + b - d - g + 15) % 30 -%}
+      {%- set i = c // 4 -%}{%- set k = c % 4 -%}{%- set l = (32 + 2 * e + 2 * i - h - k) % 7 -%}
+      {%- set mm = (a + 11 * h + 22 * l) // 451 -%}
+      {{- (h + l - 7 * mm + 114) // 31 }}-{{ ((h + l - 7 * mm + 114) % 31) + 1 -}}
+    {%- endmacro -%}
+    {%- macro day_of(y) -%}
+      {%- set lunar = {2025: '1-29', 2026: '2-17', 2027: '2-6', 2028: '1-26', 2029: '2-13', 2030: '2-3'} -%}
+      {%- set diwali = {2025: '10-20', 2026: '11-8', 2027: '10-29', 2028: '10-17', 2029: '11-5', 2030: '10-26'} -%}
+      {%- if date_kind == 'date' -%}{{ (fixed_date | string)[5:7] | int }}-{{ (fixed_date | string)[8:10] | int }}
+      {%- elif holiday == 'new_year' -%}1-1
+      {%- elif holiday == 'lunar_new_year' -%}{{ lunar.get(y, '') }}
+      {%- elif holiday == 'valentines' -%}2-14
+      {%- elif holiday == 'st_patricks' -%}3-17
+      {%- elif holiday == 'easter' -%}{{ easter(y) }}
+      {%- elif holiday == 'mothers_day' -%}5-{{ nth(y, 5, 6, 2) }}
+      {%- elif holiday == 'memorial_day' -%}5-{{ last(y, 5, 0) }}
+      {%- elif holiday == 'fathers_day' -%}6-{{ nth(y, 6, 6, 3) }}
+      {%- elif holiday == 'canada_day' -%}7-1
+      {%- elif holiday == 'independence_day' -%}7-4
+      {%- elif holiday == 'labor_day' -%}9-{{ nth(y, 9, 0, 1) }}
+      {%- elif holiday == 'thanksgiving_ca' -%}10-{{ nth(y, 10, 0, 2) }}
+      {%- elif holiday == 'halloween' -%}10-31
+      {%- elif holiday == 'diwali' -%}{{ diwali.get(y, '') }}
+      {%- elif holiday == 'veterans_day' -%}11-11
+      {%- elif holiday == 'thanksgiving' -%}11-{{ nth(y, 11, 3, 4) }}
+      {%- elif holiday == 'christmas' -%}12-25
+      {%- elif holiday == 'new_years_eve' -%}12-31
+      {%- endif -%}
+    {%- endmacro -%}
+    {%- set today = now().date() -%}
+    {%- set ns = namespace(out=[]) -%}
+    {%- for back in [0, 1] -%}
+      {%- set day = today - timedelta(days=back) -%}
+      {%- set hit = namespace(ok=false) -%}
+      {%- for y in [day.year - 1, day.year, day.year + 1] -%}
+        {%- set md = day_of(y) | trim -%}
+        {%- if md -%}
+          {%- set target = strptime(y ~ '-' ~ md, '%Y-%m-%d').date() -%}
+          {%- set diff = (day - target).days -%}
+          {%- if -(days_before | int) <= diff <= (days_after | int) -%}{%- set hit.ok = true -%}{%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- set ns.out = ns.out + [hit.ok] -%}
+    {%- endfor -%}
+    {{ ns.out }}
+  # An off that comes the next morning (at sunrise, or a time earlier than
+  # the on time) belongs to the evening before.
+  off_next_morning: >-
+    {{ off_kind == 'sunrise'
+       or (off_kind == 'time' and on_kind == 'time' and off_time <= on_time)
+       or (off_kind == 'time' and on_kind != 'time' and off_time < '12:00:00') }}
+
+trigger:
+  - platform: time
+    at: !input on_time
+    id: on_time
+  - platform: sun
+    event: sunset
+    offset: !input on_offset
+    id: on_sunset
+  - platform: sun
+    event: sunrise
+    offset: !input on_offset
+    id: on_sunrise
+  - platform: time
+    at: !input off_time
+    id: off_time
+  - platform: sun
+    event: sunrise
+    offset: !input off_offset
+    id: off_sunrise
+  - platform: sun
+    event: sunset
+    offset: !input off_offset
+    id: off_sunset
+
+action:
+  - choose:
+      - alias: Turn on with the pattern, on a day in the window
+        conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'on_' ~ on_kind and windows[0] }}"
+        sequence:
+          - service: light.turn_on
+            target:
+              entity_id: !input lights
+            data:
+              # The light's own spelling of the pattern's name.
+              effect: >-
+                {%- set ns = namespace(found=pattern) -%}
+                {%- for l in expand(lights) if l.attributes.effect_list is defined -%}
+                  {%- for e in l.attributes.effect_list if e | lower == pattern | lower -%}{%- set ns.found = e -%}{%- endfor -%}
+                {%- endfor -%}
+                {{ ns.found }}
+      - alias: Turn off (back to their schedules) after a day in the window
+        conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'off_' ~ off_kind and windows[1 if off_next_morning else 0] }}"
+        sequence:
+          - service: light.turn_off
+            target:
+              entity_id: !input lights
