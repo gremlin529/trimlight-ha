@@ -38,10 +38,11 @@ Controllers in the same space (front and back of the house, say) can be put in a
 
 `blueprints/automation/trimlight/holiday_effect.yaml` shows a pattern each evening around a date or a holiday, and turns the lights off again afterwards (back to their own schedules). It repeats every year. To use it, copy it to `config/blueprints/automation/trimlight/` and create an automation from it under **Settings → Automations → Blueprints**.
 
-- **Around:** a date (only the month and day count), or a holiday. The holidays are New Year's Day and Eve, Valentine's, St. Patrick's, Easter, Mother's and Father's Day, Memorial Day, Canada Day, Independence Day, Labor Day, Thanksgiving (US and Canada), Halloween, Veterans/Remembrance Day and Christmas. Easter and the "nth weekday" holidays are worked out for each year. Diwali and Lunar New Year follow the moon, so they come from a table that runs to 2030.
-- **Days before and after:** how many days either side of the date it runs. A window can cross New Year.
+- **Around:** a holiday or a date (only the month and day count), each with days before and after; or **a range of dates** (from and until, both included, repeating every year, and able to cross New Year, e.g. 15 Dec to 5 Jan).
+- **Holidays:** New Year's Day and Eve, Valentine's, St. Patrick's, Easter, Mother's and Father's Day, Memorial Day, Canada Day, Independence Day, Labor Day, Thanksgiving (US and Canada), Halloween, Veterans/Remembrance Day and Christmas. Easter and the "nth weekday" holidays are worked out for each year. Diwali and Lunar New Year follow the moon, so they come from a table that runs to 2030.
+- **Days before and after:** how many days either side of the holiday or date it runs. A window can cross New Year.
 - **On:** at a time, or at sunset or sunrise with an offset (e.g. -00:15 for 15 minutes before sunset). **Off:** the same choices. An off the next morning (at sunrise, or at a time earlier than the on time) counts with the evening before.
-- **Pattern:** the pattern's name as in the light's effect list (any case).
+- **Pattern:** pick from the list of the trim lights' patterns (as of when the blueprint was written), or type the name of a newer one.
 
 The integration also keeps each controller's clock right (it's set every minute, as the app does on connecting), since the controller's schedules run on it.
 

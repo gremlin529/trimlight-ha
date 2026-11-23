@@ -2,10 +2,13 @@ blueprint:
   name: Trimlight - show a pattern around a date or holiday
   description: >-
     Turns Trimlight lights on with one of their patterns each evening around a
-    date or holiday (so many days before and after), and off again (off hands
+    holiday or a date (so many days before and after), or through a range of
+    dates, and off again (off hands
     them back to their own schedules). On and off can be at a time of day or
     at sunset or sunrise, with an offset. Repeats every year.
   domain: automation
+  homeassistant:
+    min_version: "2026.11.0"
   input:
     lights:
       name: Trimlight lights
@@ -18,9 +21,40 @@ blueprint:
               domain: light
     pattern:
       name: Pattern
-      description: The pattern's name, as in the light's effect list (case doesn't matter), e.g. CHRISTMAS.
+      description: >-
+        Pick one, or type the name of a pattern made since (case doesn't
+        matter). The list is the trim lights' patterns when this blueprint
+        was written; update it by editing this file.
       selector:
-        text:
+        select:
+          custom_value: true
+          options:
+            - "NEW YEAR"
+            - "VALENTINE'S DAY"
+            - "ST.PATRICK'S DAY"
+            - "MOTHER'S DAY"
+            - "INDEPENDENCE DAY"
+            - "CANADA DAY"
+            - "HALLOWEEN"
+            - "THANKSGIVING"
+            - "CHRISTMAS"
+            - "Rams"
+            - "Daddy XMas"
+            - "Daddy XMas Fade"
+            - "Daddy XMas Stacking"
+            - "XMas Stack"
+            - "Green Stacking"
+            - "GreenRedSnake"
+            - "RedGreenInsideOut"
+            - "All White"
+            - "warm white"
+            - "water"
+            - "waving Water"
+            - "Mariners"
+            - "Diwali"
+            - "Tina New Year"
+            - "pink and red"
+            - "Tina's New Year"
     date_kind:
       name: Around
       default: holiday
@@ -31,9 +65,13 @@ blueprint:
               value: holiday
             - label: A date (every year)
               value: date
+            - label: A range of dates (every year)
+              value: range
     holiday:
+      visible:
+        field: date_kind
+        value: holiday
       name: Holiday
-      description: Used when "Around" is a holiday.
       default: christmas
       selector:
         select:
@@ -57,17 +95,46 @@ blueprint:
             - { label: "Christmas (25 Dec)", value: christmas }
             - { label: "New Year's Eve (31 Dec)", value: new_years_eve }
     date:
+      visible:
+        field: date_kind
+        value: date
       name: Date
-      description: Used when "Around" is a date. Only the month and day count; it repeats every year.
+      description: Only the month and day count; it repeats every year.
       default: "2026-12-25"
       selector:
         date:
+    range_start:
+      visible:
+        field: date_kind
+        value: range
+      name: From
+      description: Only the month and day count; it repeats every year.
+      default: "2026-12-01"
+      selector:
+        date:
+    range_end:
+      visible:
+        field: date_kind
+        value: range
+      name: Until (included)
+      description: The last day of the range. It may be in the next year (e.g. 15 Dec to 5 Jan).
+      default: "2027-01-05"
+      selector:
+        date:
     days_before:
+      visible:
+        field: date_kind
+        operator: in
+        value: [holiday, date]
       name: Days before
       default: 0
       selector:
         number: { min: 0, max: 60, mode: box, unit_of_measurement: days }
     days_after:
+      visible:
+        field: date_kind
+        operator: in
+        value: [holiday, date]
       name: Days after
       default: 0
       selector:
@@ -82,11 +149,18 @@ blueprint:
             - { label: "At sunset (plus the offset)", value: sunset }
             - { label: "At sunrise (plus the offset)", value: sunrise }
     on_time:
+      visible:
+        field: on_kind
+        value: time
       name: On at (time)
       default: "17:00:00"
       selector:
         time:
     on_offset:
+      visible:
+        field: on_kind
+        operator: in
+        value: [sunset, sunrise]
       name: On offset from the sun
       description: e.g. -00:15 for 15 minutes before sunset.
       default: { hours: 0, minutes: 0, seconds: 0 }
@@ -103,11 +177,18 @@ blueprint:
             - { label: "At sunrise (plus the offset)", value: sunrise }
             - { label: "At sunset (plus the offset)", value: sunset }
     off_time:
+      visible:
+        field: off_kind
+        value: time
       name: Off at (time)
       default: "23:00:00"
       selector:
         time:
     off_offset:
+      visible:
+        field: off_kind
+        operator: in
+        value: [sunrise, sunset]
       name: Off offset from the sun
       default: { hours: 0, minutes: 0, seconds: 0 }
       selector:
@@ -122,6 +203,8 @@ variables:
   date_kind: !input date_kind
   holiday: !input holiday
   fixed_date: !input date
+  range_start: !input range_start
+  range_end: !input range_end
   days_before: !input days_before
   days_after: !input days_after
   on_kind: !input on_kind
@@ -178,7 +261,16 @@ variables:
       {%- set day = today - timedelta(days=back) -%}
       {%- set hit = namespace(ok=false) -%}
       {%- for y in [day.year - 1, day.year, day.year + 1] -%}
-        {%- set md = day_of(y) | trim -%}
+        {%- if date_kind == 'range' -%}
+          {#- From the start's month and day in year y to the end's, in y or
+              (if it comes earlier in the year) y + 1. -#}
+          {%- set s_md = (range_start | string)[5:10] -%}
+          {%- set e_md = (range_end | string)[5:10] -%}
+          {%- set first = strptime(y ~ '-' ~ s_md, '%Y-%m-%d').date() -%}
+          {%- set last = strptime((y + (1 if e_md < s_md else 0)) ~ '-' ~ e_md, '%Y-%m-%d').date() -%}
+          {%- if first <= day <= last -%}{%- set hit.ok = true -%}{%- endif -%}
+        {%- endif -%}
+        {%- set md = day_of(y) | trim if date_kind != 'range' else '' -%}
         {%- if md -%}
           {%- set target = strptime(y ~ '-' ~ md, '%Y-%m-%d').date() -%}
           {%- set diff = (day - target).days -%}
