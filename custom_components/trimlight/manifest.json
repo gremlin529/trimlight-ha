@@ -5,7 +5,7 @@
   "config_flow": true,
   "dependencies": ["network"],
   "documentation": "https://github.com/gremlin529/trimlight-ha",
-  "homeassistant": "2026.11.0",
+  "homeassistant": "2024.12.0",
   "icon": "mdi:string-lights",
   "integration_type": "device",
   "iot_class": "local_polling",
