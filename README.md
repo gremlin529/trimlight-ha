@@ -31,6 +31,8 @@ Each controller becomes a device with:
 
 Controllers in the same space (front and back of the house, say) can be put in a **group**, which is one light that controls them all together. Add one with **Add integration → Trimlight → A group of controllers** (offered once there are two controllers), give it a name and pick the controllers; change them later with **Configure**.
 
+**When you create a group, the individual member lights automatically hide from dashboards and blueprints.** Only the group light appears, which keeps your UI clean. If you delete the group, the members reappear automatically.
+
 - **It keeps the controllers' patterns the same.** Any pattern one controller has and another doesn't (matched by name, ignoring case) is copied to the others. This happens when the group starts, within about a minute of a pattern being made in the Trimlight app (each controller is read every minute), and just before the group is turned on. `trimlight.sync_patterns` does it on demand. Where two controllers have a pattern with the same name but different settings, each keeps its own. Deleting a pattern in the app only removes it from that controller, so the group puts it back; use `trimlight.delete_pattern` on the group to delete it from all of them.
 - Its effects are the patterns every controller in it has. Picking one shows it on all of them.
 - On, off (back to their schedules), brightness and colour go to all of them.
