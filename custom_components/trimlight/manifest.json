@@ -1,12 +1,14 @@
 {
   "domain": "trimlight",
   "name": "Trimlight",
-  "codeowners": [],
+  "codeowners": ["@gremlin529"],
   "config_flow": true,
   "dependencies": ["network"],
-  "documentation": "https://github.com/msjarrett/trimlight/blob/main/protocol/protocol.md",
+  "documentation": "https://github.com/gremlin529/trimlight-ha",
+  "icon": "mdi:string-lights",
   "integration_type": "device",
   "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/gremlin529/trimlight-ha/issues",
   "requirements": [],
   "version": "0.1.0"
 }

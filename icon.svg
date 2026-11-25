@@ -1,0 +1,32 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- Eave/roof overhang -->
+  <path d="M 30 90 L 240 60 L 240 85 L 30 115 Z" fill="#f5f5f5" stroke="#1a1a2e" stroke-width="2"/>
+  
+  <!-- Wire strings -->
+  <line x1="50" y1="115" x2="50" y2="180" stroke="#1a1a2e" stroke-width="1.5"/>
+  <line x1="90" y1="118" x2="90" y2="180" stroke="#1a1a2e" stroke-width="1.5"/>
+  <line x1="130" y1="120" x2="130" y2="180" stroke="#1a1a2e" stroke-width="1.5"/>
+  <line x1="170" y1="122" x2="170" y2="180" stroke="#1a1a2e" stroke-width="1.5"/>
+  <line x1="210" y1="124" x2="210" y2="180" stroke="#1a1a2e" stroke-width="1.5"/>
+  
+  <!-- Light bulbs -->
+  <!-- Red bulb 1 -->
+  <ellipse cx="50" cy="165" rx="12" ry="14" fill="#ff3333"/>
+  <ellipse cx="47" cy="161" rx="3" ry="3" fill="#ffffff" opacity="0.6"/>
+  
+  <!-- Green bulb 1 -->
+  <ellipse cx="90" cy="168" rx="12" ry="14" fill="#2ecc71"/>
+  <ellipse cx="87" cy="164" rx="3" ry="3" fill="#ffffff" opacity="0.6"/>
+  
+  <!-- Blue bulb -->
+  <ellipse cx="130" cy="170" rx="12" ry="14" fill="#3498db"/>
+  <ellipse cx="127" cy="166" rx="3" ry="3" fill="#ffffff" opacity="0.6"/>
+  
+  <!-- Yellow bulb -->
+  <ellipse cx="170" cy="172" rx="12" ry="14" fill="#f1c40f"/>
+  <ellipse cx="167" cy="168" rx="3" ry="3" fill="#ffffff" opacity="0.6"/>
+  
+  <!-- Red bulb 2 -->
+  <ellipse cx="210" cy="174" rx="12" ry="14" fill="#ff3333"/>
+  <ellipse cx="207" cy="170" rx="3" ry="3" fill="#ffffff" opacity="0.6"/>
+</svg>

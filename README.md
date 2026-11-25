@@ -1,6 +1,8 @@
 # Trimlight for Home Assistant
 
-A custom integration that controls [Trimlight](https://trimlight.com) permanent LED lights over your local network, with no cloud account and no app. It uses the controllers' own LAN protocol (TCP port 8189), as reverse-engineered in [msjarrett/trimlight](https://github.com/msjarrett/trimlight/blob/main/protocol/protocol.md).
+A custom Home Assistant integration that controls [Trimlight](https://trimlight.com) permanent mounted LED lights over your local network, with no cloud account and no app. It uses the controllers' own LAN protocol (TCP port 8189), as reverse-engineered in [msjarrett/trimlight](https://github.com/msjarrett/trimlight/blob/main/protocol/protocol.md).
+
+**What are Trimlight lights?** Permanent LED strip lights mounted under eaves and rooflines, controlled by a local LAN device (the controller). They're often used for seasonal or holiday displays.
 
 ## What you get
 
@@ -51,23 +53,128 @@ The integration also keeps each controller's clock right (it's set every minute,
 - **The app and Home Assistant at once**: while the Trimlight app is connected, the controller drops or muddles other connections. The integration keeps its last reading through a few failed polls and throws away replies that don't match what it asked for, so the light doesn't flicker unavailable or show garbage.
 - **No status feedback**: the controllers never say what they're showing. In manual mode the light shows what Home Assistant last sent; changes made in the Trimlight app won't show up. In schedule mode it works out what the schedules are showing from the schedules themselves.
 - **No true off**: the controllers have no off command, only their schedules. To keep them dark, there must be no schedule covering now.
-- **One controller model**: the protocol was worked out on one model (Select Plus), so some commands may differ on others.
-- **Identified by IP address**: give each controller a fixed address (a DHCP reservation in your router) so it keeps the same one.
+- **One controller model tested**: the protocol was reverse-engineered on Select Plus. Other models may work but haven't been tested; report issues if yours differs.
+- **Identified by IP address** (for now): give each controller a fixed address (a DHCP reservation in your router) so it keeps the same one. Future versions will use MAC address for stability.
 
 ## Installing
 
-1. **Copy the files:** copy the `custom_components/trimlight` folder into Home Assistant's `config/custom_components/` folder, so you end up with `config/custom_components/trimlight/manifest.json`. Any of these works:
-   - **Samba share add-on:** connect to `smb://homeassistant.local/config` from Finder (Go → Connect to Server) and drag the folder in.
-   - **Studio Code Server or File editor add-on:** create the folder and upload the files.
-   - **SSH add-on:** `scp -r custom_components/trimlight root@homeassistant.local:/config/custom_components/`
-2. **Restart Home Assistant:** Settings → System → Restart.
-3. **Add it:** Settings → Devices & services → **Add integration** → search **Trimlight**. It searches the network for controllers (about 10 seconds) and lists the ones it finds; pick one, or type an IP address. Repeat for each controller.
-4. **Optional, group:** add Trimlight again and choose **A group of controllers** to control several together.
-5. **Optional, area:** put the devices in an area, e.g. Outside.
+### Quick Start (Most Users)
 
-To update, copy the folder over again and restart.
+1. **Via HACS** (recommended):
+   - Open HACS → Integrations
+   - Add this repository as a custom repository: `https://github.com/gremlin529/trimlight-ha`
+   - Search for **Trimlight** and click Install
+   - Restart Home Assistant
 
-## Checking a controller without Home Assistant
+2. **Or Manual**:
+   - Copy `custom_components/trimlight` to `config/custom_components/` on your Home Assistant instance
+   - Restart Home Assistant
+
+3. **Add a controller**:
+   - Settings → Devices & services → **Add integration** → search **Trimlight**
+   - The integration scans your network for controllers (~10 seconds)
+   - Pick a controller from the list, or enter its IP address manually if not found
+   - Repeat for each controller
+
+4. **Optional—Group controllers together**:
+   - Settings → Devices & services → **Add integration** → **Trimlight** → **A group of controllers**
+   - Give it a name and select which controllers to include
+   - Groups keep all members' patterns in sync and control them together
+
+### Manual Setup (Advanced)
+
+If auto-discovery doesn't find your controller:
+- Find your controller's IP address (Trimlight app → Settings, or check your router's DHCP list)
+- Ensure it's on the same network as Home Assistant
+- When adding the integration, enter the IP manually
+
+### Setup Requirements
+
+- **Home Assistant 2026.11.0** or later
+- **Local network access** to your Trimlight controller (TCP port 8189)
+- **Fixed IP address** (or DHCP reservation) for each controller to keep them stable across restarts
+- Trimlight controller with LAN protocol support (tested on Select Plus)
+
+## Discovery & Auto-Detection
+
+The integration automatically discovers Trimlight controllers on your network by:
+- Scanning your Home Assistant's network subnets on port 8189 (the same method the Trimlight app uses)
+- Presenting any found controllers to you during setup
+
+This requires both devices to be on the same local network; if discovery doesn't find your controller, manually enter its IP address instead.
+
+## Updating
+
+- **HACS**: integrations with new versions show an update button
+- **Manual**: copy the folder over again and restart Home Assistant
+
+## Troubleshooting
+
+### Controller not found during discovery
+- Check that the controller is powered on and connected to your network
+- Verify it's on the same network as Home Assistant (not a guest/isolated VLAN)
+- Try entering the IP address manually in the integration setup form
+- Use `tools/check.py` to verify the controller responds on its IP
+
+### Light shows unavailable
+- Check the controller is reachable: `ping <controller-ip>`
+- Verify Home Assistant can reach TCP port 8189 on the controller
+- If the Trimlight app is connected, it may be blocking the integration; disconnect the app
+- Restart the integration: Settings → Devices & services → Trimlight → Reload
+
+### Patterns not syncing in a group
+- Ensure all controllers in the group have network connectivity
+- Trigger a manual sync: Call `trimlight.sync_patterns` on the group light
+- Check the group's `pattern` attribute for details
+
+## Credits
+
+- **Protocol reverse-engineering**: [@msjarrett](https://github.com/msjarrett)
+- **Integration**: [@gremlin529](https://github.com/gremlin529)
+
+## License
+
+MIT License. See [LICENSE](/LICENSE) for details.
+
+---
+
+## For Developers
+
+### Protocol Testing
+
+The `tools/check.py` script talks to a controller directly (without Home Assistant):
+
+```bash
+python3 tools/check.py 192.168.1.100
+python3 tools/check.py --discover 192.168.1.5
+```
+
+This is useful for:
+- Verifying a controller is reachable
+- Checking its current mode, patterns, and schedules
+- Debugging protocol issues
+- Testing changes to `protocol.py` in isolation
+
+The `tools/watch.py` script monitors a controller for pattern changes made in the Trimlight app:
+
+```bash
+python3 tools/watch.py 192.168.1.100
+```
+
+### Code Structure
+
+- **`protocol.py`**: LAN protocol implementation (no Home Assistant dependencies). Can be tested independently.
+- **`coordinator.py`**: `TrimlightCoordinator` handles polling, caching, and pattern edits for one controller.
+- **`light.py`**: `TrimlightLight` and `TrimlightGroupLight` entity implementations, service actions, and off timers.
+- **`groups.py`**: Group helpers and pattern synchronization across controllers.
+- **`config_flow.py`**: Setup flow, discovery, and group options.
+- **`__init__.py`**: Integration initialization and coordinator setup.
+
+### Contributing
+
+Found a bug or want to add a feature? Please open an issue or pull request on [GitHub](https://github.com/gremlin529/trimlight-ha/issues).
+
+**Testing hardware/firmware**: please report what controller model and firmware version you're using if you encounter issues.
 
 `tools/check.py` uses the same protocol code to read a controller: its name, mode, patterns and schedules, and what the schedules say should be on now.
 
